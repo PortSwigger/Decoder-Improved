@@ -4,7 +4,6 @@ import org.exbin.deltahex.CodeType;
 import org.exbin.deltahex.DataChangedListener;
 import org.exbin.deltahex.SelectionRange;
 import org.exbin.deltahex.swing.CodeArea;
-import org.exbin.utils.binary_data.BinaryData;
 import org.exbin.utils.binary_data.ByteArrayEditableData;
 import trust.nccgroup.decoderimproved.CONSTANTS;
 import trust.nccgroup.decoderimproved.Logger;
@@ -13,15 +12,13 @@ import trust.nccgroup.decoderimproved.Utils;
 import trust.nccgroup.decoderimproved.modes.AbstractModificationMode;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.PopupMenuEvent;
 import javax.swing.event.PopupMenuListener;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
+import java.awt.event.*;
 import java.io.FileOutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -34,12 +31,16 @@ public class DecoderSegment extends JPanel {
 
     public DecoderSegmentState dsState;
 
-    private JPanel radioPanel;
+    private JPanel segmentControlPanel;
 
     // This changes the editor between hex view and text view
     private ButtonGroup textHexGroup;
     private JRadioButton textRadio;
     public JRadioButton hexRadio;
+    private JButton closeButton;
+    private JPanel textControlPanel;
+    private JLabel textInfoLabel;
+    private JCheckBox textWrapCheckBox;
     private JComboBox<String> exportComboBox;
 
     // These manage the editor views
@@ -52,7 +53,7 @@ public class DecoderSegment extends JPanel {
     private JPanel controlPanel;
     private JScrollPane editorPanel;
     private JScrollPane hexPanel;
-    private JTextPane textEditor;
+    private JTextArea textEditor;
     private CodeArea hexEditor;
 
 
@@ -73,7 +74,11 @@ public class DecoderSegment extends JPanel {
         setupComponents();
     }
 
-    JTextPane getTextEditor() {
+    void setTextInfo(String info) {
+        textInfoLabel.setText(info);
+    }
+
+    JTextArea getTextEditor() {
         return textEditor;
     }
 
@@ -107,9 +112,8 @@ public class DecoderSegment extends JPanel {
         });
     }
 
-    void showError(String _errorMessage) {
+    void showError(String errorMessage) {
         hasError = true;
-        errorMessage = _errorMessage;
         textEditor.setText(errorMessage);
         textEditor.setForeground(Color.RED);
         textEditor.setEditable(false);
@@ -157,13 +161,17 @@ public class DecoderSegment extends JPanel {
 
         // Everything I initialize below this line is probably going to get removed
         textHexGroup = new ButtonGroup();
+        textEditor = new JTextArea();
         editorPanel = new PDControlScrollPane();
         hexPanel = new JScrollPane();
-        textEditor = new JTextPane();
         controlPanel = new JPanel();
-        radioPanel = new JPanel();
+        segmentControlPanel = new JPanel();
         textRadio = new JRadioButton();
         hexRadio = new JRadioButton();
+        closeButton = new JButton();
+        textControlPanel = new JPanel();
+        textInfoLabel = new JLabel();
+        textWrapCheckBox = new JCheckBox();
         exportComboBox = new JComboBox<>();
 
         modeSelector = new JComboBox<>();
@@ -176,7 +184,7 @@ public class DecoderSegment extends JPanel {
         this.setMaximumSize(new Dimension(3000, CONSTANTS.SEGMENT_HEIGHT));
         this.setMinimumSize(new Dimension(50, CONSTANTS.SEGMENT_HEIGHT));
         this.setPreferredSize(new Dimension(711, CONSTANTS.SEGMENT_HEIGHT));
-        this.setBorder(BorderFactory.createEmptyBorder(5, 5, 0, 0));
+        this.setBorder(BorderFactory.createEmptyBorder(5, 5, 10, 0));
         this.setLayout(new GridBagLayout());
 
         editorPanel.setMinimumSize(new Dimension(50, CONSTANTS.PANEL_HEIGHT));
@@ -186,9 +194,6 @@ public class DecoderSegment extends JPanel {
         // hexEditor has its own vertical scrollbar
         hexPanel.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_NEVER);
 
-        textEditor.setMinimumSize(new Dimension(50, CONSTANTS.PANEL_HEIGHT));
-        textEditor.setPreferredSize(new Dimension(100, CONSTANTS.PANEL_HEIGHT));
-        textEditor.setContentType("text/plain");
         textEditor.setComponentPopupMenu(MenuHandler.createTextEditorPopupMenu(textEditor, this));
 
         hexEditor.setMinimumSize(new Dimension(50, CONSTANTS.PANEL_HEIGHT));
@@ -197,13 +202,19 @@ public class DecoderSegment extends JPanel {
 
         hexPanel.setViewportView(hexEditor);
         editorPanel.setViewportView(textEditor);
+        // Use TextLineNumber for line number display
+        TextLineNumber tln = new TextLineNumber(textEditor);
+        tln.setUpdateFont(true);
+        tln.setMinimumDisplayDigits(1);
+        editorPanel.setRowHeaderView(tln);
+
+        masterEditorPanel.add(editorPanel);
+        masterEditorPanel.add(hexPanel);
+
         GridBagConstraints editorPanelConstraints = new GridBagConstraints();
         editorPanelConstraints.fill = GridBagConstraints.HORIZONTAL;
         editorPanelConstraints.anchor = GridBagConstraints.WEST;
         editorPanelConstraints.weightx = 1.0;
-
-        masterEditorPanel.add(editorPanel);
-        masterEditorPanel.add(hexPanel);
 
         this.add(masterEditorPanel, editorPanelConstraints);
         controlPanel.setMaximumSize(new Dimension(150, CONSTANTS.PANEL_HEIGHT));
@@ -212,10 +223,10 @@ public class DecoderSegment extends JPanel {
         controlPanel.setLayout(new BoxLayout(controlPanel, BoxLayout.PAGE_AXIS));
 
         // Radio group
-        radioPanel.setMaximumSize(new Dimension(125, CONSTANTS.COMBO_BOX_HEIGHT));
-        radioPanel.setMinimumSize(new Dimension(125, CONSTANTS.COMBO_BOX_HEIGHT));
-        radioPanel.setPreferredSize(new Dimension(125, CONSTANTS.COMBO_BOX_HEIGHT));
-        radioPanel.setLayout(new GridLayout());
+        segmentControlPanel.setMaximumSize(new Dimension(CONSTANTS.COMBO_BOX_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+        segmentControlPanel.setMinimumSize(new Dimension(CONSTANTS.COMBO_BOX_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+        segmentControlPanel.setPreferredSize(new Dimension(CONSTANTS.COMBO_BOX_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+        segmentControlPanel.setLayout(new FlowLayout());
 
         textRadio.setText("Text");
         textRadio.setSelected(true);
@@ -228,10 +239,20 @@ public class DecoderSegment extends JPanel {
 
         textHexGroup.add(textRadio);
         textHexGroup.add(hexRadio);
+        segmentControlPanel.add(textRadio);
+        segmentControlPanel.add(hexRadio);
 
-        radioPanel.add(textRadio);
-        radioPanel.add(hexRadio);
-        controlPanel.add(radioPanel);
+        // Add close button if the segment is not the first one in a tab
+        closeButton.setText("✕");
+        closeButton.setFont(new Font("monospaced", Font.PLAIN, 10));
+        closeButton.setBorder(new EmptyBorder(0, 0, 0, 0));
+        closeButton.setMaximumSize(new Dimension(20, 20));
+        closeButton.setMinimumSize(new Dimension(20, 20));
+        closeButton.setPreferredSize(new Dimension(20, 20));
+        segmentControlPanel.add(Box.createRigidArea(new Dimension(10, 0)));
+        segmentControlPanel.add(closeButton);
+
+        controlPanel.add(segmentControlPanel);
 
         // Modes
         controlPanel.add(modeManager.getUI());
@@ -245,6 +266,27 @@ public class DecoderSegment extends JPanel {
         exportComboBox.addItem("Hex");
         exportComboBox.addItem("UTF-8 String");
 
+        textControlPanel.setMaximumSize(CONSTANTS.COMBO_BOX_DIMENSION);
+        textControlPanel.setMinimumSize(CONSTANTS.COMBO_BOX_DIMENSION);
+        textControlPanel.setPreferredSize(CONSTANTS.COMBO_BOX_DIMENSION);
+        textControlPanel.setLayout(new FlowLayout(FlowLayout.CENTER, 0, 0));
+
+        textInfoLabel.setMaximumSize(new Dimension(CONSTANTS.COMBO_BOX_SHORT_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+        textInfoLabel.setMinimumSize(new Dimension(CONSTANTS.COMBO_BOX_SHORT_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+        textInfoLabel.setPreferredSize(new Dimension(CONSTANTS.COMBO_BOX_SHORT_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+
+        textInfoLabel.setFont(CONSTANTS.SMALLER_FONT);
+
+        textWrapCheckBox.setMaximumSize(new Dimension(CONSTANTS.COMBO_BOX_SHORT_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+        textWrapCheckBox.setMinimumSize(new Dimension(CONSTANTS.COMBO_BOX_SHORT_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+        textWrapCheckBox.setPreferredSize(new Dimension(CONSTANTS.COMBO_BOX_SHORT_WIDTH, CONSTANTS.COMBO_BOX_HEIGHT));
+        textWrapCheckBox.setText("Wrap line");
+        textWrapCheckBox.setFont(CONSTANTS.SMALLER_FONT);
+
+        textControlPanel.add(textInfoLabel);
+        textControlPanel.add(textWrapCheckBox);
+
+        controlPanel.add(textControlPanel);
         controlPanel.add(exportComboBox);
 
         GridBagConstraints controlPanelConstraints = new GridBagConstraints();
@@ -264,6 +306,13 @@ public class DecoderSegment extends JPanel {
         textRadio.addActionListener((ActionEvent e) -> {
             updateEditors(dsState);
             cardManager.first(masterEditorPanel);
+        });
+
+        closeButton.addActionListener((ActionEvent e) -> {
+            if(JOptionPane.showConfirmDialog(this, "Delete this segment?", null, JOptionPane.YES_NO_OPTION)
+                    == JOptionPane.YES_OPTION){
+                decoderTab.removeDecoderSegment(this);
+            }
         });
 
         exportComboBox.addActionListener((ActionEvent event) -> {
@@ -362,6 +411,19 @@ public class DecoderSegment extends JPanel {
             // It only fires when the text mode of the document changes which never happens
             @Override
             public void changedUpdate(DocumentEvent e) { }
+        });
+
+        textWrapCheckBox.addItemListener(new ItemListener() {
+            @Override
+            public void itemStateChanged(ItemEvent e) {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    textEditor.setWrapStyleWord(true);
+                    textEditor.setLineWrap(true);
+                } else {
+                    textEditor.setWrapStyleWord(false);
+                    textEditor.setLineWrap(false);
+                }
+            }
         });
     }
 
@@ -624,7 +686,7 @@ public class DecoderSegment extends JPanel {
             return popupMenu;
         }
 
-        private static JPopupMenu createTextEditorPopupMenu(final JTextPane textEditor, final DecoderSegment decoderSegment) {
+        private static JPopupMenu createTextEditorPopupMenu(final JTextArea textEditor, final DecoderSegment decoderSegment) {
             JPopupMenu popupMenu = new JPopupMenu();
 
             // Undo popup menu item
